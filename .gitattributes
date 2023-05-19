@@ -1,0 +1,6 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+bin/** linguist-vendored
+imgui/** linguist-vendored
+sdl/** linguist-vendored
