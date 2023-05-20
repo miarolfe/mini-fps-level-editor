@@ -24,7 +24,11 @@ set(IMGUI_HEADERS
         imgui/imstb_truetype.h)
 
 set(EDITOR_SOURCE
-        src/main.cpp)
+        src/main.cpp
+        src/Application.cpp)
+
+set(EDITOR_HEADERS
+        src/Application.h)
 
 if(WIN32)
     message(FATAL_ERROR "Unsupported platform")
