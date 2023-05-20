@@ -25,9 +25,10 @@ Application::Application(int width, int height) {
     {
         SDL_Log("Error creating SDL_Renderer!");
     }
-    //SDL_RendererInfo info;
-    //SDL_GetRendererInfo(renderer, &info);
-    //SDL_Log("Current SDL_Renderer: %s", info.name);
+
+    SDL_RendererInfo info;
+    SDL_GetRendererInfo(renderer, &info);
+    SDL_Log("Current SDL_Renderer: %s", info.name);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
