@@ -1,9 +1,42 @@
 #include "Application.h"
+#include "Texture.h"
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer.h"
-#include <stdio.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#include <cstdio>
 #include <SDL.h>
+
+
+// Dear ImGui uses SDL_Texture* as ImTextureID
+bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
+    unsigned char* data = stbi_load(fileName, &texture->width, &texture->height, &texture->channels, 0);
+
+    if (data == nullptr) {
+        fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
+        return false;
+    }
+
+    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom((void*)data, texture->width, texture->height, texture->channels * 8, texture->channels * texture->width,
+                                                    0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+
+    if (surface == nullptr) {
+        fprintf(stderr, "Failed to create SDL surface: %s\n", SDL_GetError());
+        return false;
+    }
+
+    texture->sdlTexture = SDL_CreateTextureFromSurface(texture->sdlRenderer, surface);
+
+    if (texture->sdlTexture == nullptr) {
+        fprintf(stderr, "Failed to create SDL texture: %s\n", SDL_GetError());
+    }
+
+    SDL_FreeSurface(surface);
+    stbi_image_free(data);
+
+    return true;
+}
 
 Application::Application(int width, int height) {
     // Setup SDL
@@ -35,6 +68,7 @@ Application::Application(int width, int height) {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // Setup Dear ImGui style
     //ImGui::StyleColorsDark();
@@ -49,6 +83,10 @@ Application::Application(int width, int height) {
     int mapWidth = 32;
     int mapHeight = 32;
     ImVec4 clear_color = ImVec4(0, 0, 0, 1.00f);
+
+    Texture testTexture{};
+    testTexture.sdlRenderer = renderer;
+    Application::LoadTextureFromFile(&testTexture, "test.png");
 
     // Main loop
     bool done = false;
@@ -80,7 +118,8 @@ Application::Application(int width, int height) {
             for (int x = 0; x < mapWidth; ++x)
             {
                 // Draw the tile at (x, y)
-                ImGui::Button(" ", ImVec2(tileSize, tileSize));
+                // ImGui::Button(" ", ImVec2(tileSize, tileSize));
+                ImGui::ImageButton(testTexture.sdlTexture, ImVec2(tileSize, tileSize));
 
                 // If the tile was clicked
                 if (ImGui::IsItemClicked())

@@ -28,7 +28,8 @@ set(EDITOR_SOURCE
         src/Application.cpp)
 
 set(EDITOR_HEADERS
-        src/Application.h)
+        src/Application.h
+        src/Texture.h)
 
 if(WIN32)
     message(FATAL_ERROR "Unsupported platform")
@@ -43,7 +44,8 @@ elseif(APPLE)
     target_include_directories(mini-fps-level-editor
             PRIVATE
             imgui/
-            ${SDL2_HEADERS})
+            ${SDL2_HEADERS}
+            stb/)
 
     target_link_libraries(mini-fps-level-editor PRIVATE
             ${SDL2_FRAMEWORK})

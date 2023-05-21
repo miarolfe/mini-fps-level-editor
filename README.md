@@ -9,8 +9,11 @@ More to follow
 ### mini-fps-level-editor
 MIT license
 
-### Dear Imgui
+### Dear ImGui
 MIT license
 
 ### SDL
 zlib license
+
+### stb_image
+MIT license
