@@ -4,3 +4,4 @@
 bin/** linguist-vendored
 imgui/** linguist-vendored
 sdl/** linguist-vendored
+stb/** linguist-vendored
