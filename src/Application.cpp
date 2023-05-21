@@ -31,15 +31,14 @@ Application::Application(int width, int height) {
     SDL_Log("Current SDL_Renderer: %s", info.name);
 
     // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
     // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
+    //ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
@@ -49,7 +48,7 @@ Application::Application(int width, int height) {
     int tileSize = 16;
     int mapWidth = 32;
     int mapHeight = 32;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(0, 0, 0, 1.00f);
 
     // Main loop
     bool done = false;
@@ -87,7 +86,6 @@ Application::Application(int width, int height) {
                 if (ImGui::IsItemClicked())
                 {
                     fprintf(stderr, "(%d, %d) clicked\n", x, y);
-                    // Modify the tile
                 }
 
                 ImGui::SameLine();

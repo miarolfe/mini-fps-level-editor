@@ -46,4 +46,4 @@ CTestTestfile.cmake
 _deps
 
 # Project-specific
-bin/*
+bin
