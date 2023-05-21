@@ -51,7 +51,7 @@ Application::Application(int width, int height) {
 #endif
 
     // Create window with SDL_Renderer graphics context
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_MAXIMIZED);
     SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL2+SDL_Renderer example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
     if (renderer == nullptr)
@@ -111,6 +111,8 @@ Application::Application(int width, int height) {
         // Create a main window for the tile map
         ImGui::Begin("Map editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
 
         // Display the tile map
         for (int y = 0; y < mapHeight; ++y)
@@ -118,8 +120,7 @@ Application::Application(int width, int height) {
             for (int x = 0; x < mapWidth; ++x)
             {
                 // Draw the tile at (x, y)
-                // ImGui::Button(" ", ImVec2(tileSize, tileSize));
-                ImGui::ImageButton(testTexture.sdlTexture, ImVec2(tileSize, tileSize));
+                ImGui::Image(testTexture.sdlTexture, ImVec2(tileSize, tileSize));
 
                 // If the tile was clicked
                 if (ImGui::IsItemClicked())
@@ -133,7 +134,7 @@ Application::Application(int width, int height) {
             ImGui::NewLine();
         }
 
-        ImGui::PopStyleVar();
+        ImGui::PopStyleVar(3);
 
         ImGui::End();
 
