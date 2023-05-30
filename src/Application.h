@@ -9,6 +9,8 @@ class Application {
 public:
     bool LoadTextureFromFile(Texture* texture, const char* fileName);
     Application(int width, int height);
+    void ResetLevelMatrix();
+    void NewLevel();
     bool SaveLevel(const char* filePath);
     bool LoadLevel(const char* filePath);
 private:

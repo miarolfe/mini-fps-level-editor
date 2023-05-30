@@ -48,12 +48,25 @@ bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
 
     fprintf(stdout, "Texture name: %s\n", textureName.c_str());
 
+    texture->name = textureName;
+
     if (textureNameToTextureIdMap.count(textureName) == 1) {
         texture->id = textureNameToTextureIdMap[textureName];
-        texture->name = textureName;
     }
 
     return true;
+}
+
+void Application::ResetLevelMatrix() {
+    levelMatrix = new short*[mapHeight];
+
+    for (int i = 0; i < mapHeight; i++) {
+        levelMatrix[i] = new short[mapWidth];
+    }
+}
+
+void Application::NewLevel() {
+    ResetLevelMatrix();
 }
 
 bool Application::SaveLevel(const char* filePath) {
@@ -76,11 +89,11 @@ bool Application::SaveLevel(const char* filePath) {
 
     std::map<short, std::string> reversedMap;
 
-    for (auto entry : textureNameToTextureIdMap) {
+    for (const auto& entry : textureNameToTextureIdMap) {
         reversedMap[entry.second] = entry.first;
     }
 
-    for (auto entry: reversedMap) {
+    for (const auto& entry: reversedMap) {
         outfile << entry.first << " " << entry.second << std::endl;
     }
 
@@ -97,11 +110,7 @@ bool Application::LoadLevel(const char* filePath) {
     infile >> mapWidth;
     infile >> mapHeight;
 
-    levelMatrix = new short*[mapHeight];
-
-    for (int i = 0; i < mapHeight; i++) {
-        levelMatrix[i] = new short[mapWidth];
-    }
+    ResetLevelMatrix();
 
     for (int i = 0; i < mapHeight; i++) {
         for (int j = 0; j < mapWidth; j++) {
@@ -123,10 +132,7 @@ bool Application::LoadLevel(const char* filePath) {
 }
 
 Application::Application(int width, int height) {
-    // pfd::open_file levelFileDialog = pfd::open_file("Select level");
-    // LoadLevel(levelFileDialog.result()[0].c_str());
-
-    LoadLevel("../../../test.lvl");
+    NewLevel();
 
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
@@ -134,7 +140,7 @@ Application::Application(int width, int height) {
         printf("Error: %s\n", SDL_GetError());
     }
 
-    SDL_WindowFlags windowFlags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    auto windowFlags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_Window* window = SDL_CreateWindow("mini-fps-level-editor", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, windowFlags);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
     if (renderer == nullptr)
@@ -177,7 +183,7 @@ Application::Application(int width, int height) {
     std::map<short, Texture> textureIdToTextureMap;
     std::vector<Texture> unassignedTextures;
 
-    for (auto texture : textures) {
+    for (const auto& texture : textures) {
         if (texture.id != -1) {
             textureIdToTextureMap[texture.id] = texture;
         } else {
@@ -185,15 +191,11 @@ Application::Application(int width, int height) {
         }
     }
 
-    Texture testTexture{};
-    testTexture.sdlRenderer = renderer;
-    Application::LoadTextureFromFile(&testTexture, "../../../test.png");
-
-    ImGuiWindowFlags_ defaultFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
+    auto defaultFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
                                                                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
                                                                     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
 
-    ImGuiWindowFlags_ mapEditorFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
+    auto mapEditorFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
                                                                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
                                                                       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize |
                                                                       ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
@@ -273,7 +275,7 @@ Application::Application(int width, int height) {
         ImGui::Begin("Palette", nullptr, defaultFlags);
         ImGui::Text("Assigned textures");
 
-        for (auto entry : textureIdToTextureMap) {
+        for (const auto& entry : textureIdToTextureMap) {
             ImGui::Text("id: %d", entry.first);
             ImGui::SameLine();
             ImGui::Text("name: %s", entry.second.name.c_str());
@@ -283,20 +285,68 @@ Application::Application(int width, int height) {
                 fprintf(stdout, "Image %d clicked\n", entry.first);
                 currentTile = entry.first;
             }
+            ImGui::NewLine();
         }
-
         ImGui::NewLine();
 
-        ImGui::Text("Unassigned textures");
-        for (auto entry : unassignedTextures) {
-            ImGui::Image(entry.sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
+        std::vector<short> newlyAssignedTextureIds;
+
+        if (!unassignedTextures.empty()) {
+            ImGui::Text("Unassigned textures");
+        }
+
+        for (int i = 0; i < unassignedTextures.size(); i++) {
+            ImGui::Text("name: %s", unassignedTextures[i].name.c_str());
+            ImGui::Image(unassignedTextures[i].sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
             if (ImGui::IsItemClicked()) {
                 fprintf(stdout, "Unassigned texture clicked\n");
+            }
+
+            if (ImGui::Button(("Assign an id##" + std::to_string(i)).c_str())) {
+                short id = -1;
+                short potentialId = 1;
+
+                while (id == -1) {
+                    if (textureIdToTextureMap.count(potentialId) == 0) {
+                        id = potentialId;
+                        textureIdToTextureMap[id] = unassignedTextures[i];
+                        newlyAssignedTextureIds.push_back(unassignedTextures[i].id);
+                    } else {
+                        potentialId++;
+                    }
+                }
+
+                fprintf(stdout, "%d\n", id);
+            }
+
+            ImGui::NewLine();
+        }
+
+        for (int i = 0; i < newlyAssignedTextureIds.size(); i++) {
+            int index;
+
+            for (int j = 0; j < unassignedTextures.size(); j++) {
+                if (newlyAssignedTextureIds[i] == unassignedTextures[j].id) {
+                    index = j;
+                    break;
+                }
+            }
+
+            for (int h = index; h < unassignedTextures.size(); h++) {
+                unassignedTextures[h] = unassignedTextures[h+1];
+            }
+
+            if (!newlyAssignedTextureIds.empty()) {
+                unassignedTextures.pop_back();
             }
         }
 
         if (ImGui::BeginMainMenuBar()) {
             if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("New", "", nullptr)) {
+                    NewLevel();
+                }
+
                 if (ImGui::MenuItem("Save", "", nullptr)) {
                     pfd::save_file newLevelFileDialog = pfd::save_file("TODO");
                     SaveLevel(newLevelFileDialog.result().c_str());
