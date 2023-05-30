@@ -25,7 +25,8 @@ set(IMGUI_HEADERS
 
 set(EDITOR_SOURCE
         src/main.cpp
-        src/Application.cpp)
+        src/Application.cpp
+        )
 
 set(EDITOR_HEADERS
         src/Application.h
@@ -39,15 +40,31 @@ elseif(APPLE)
 
     set(CMAKE_BUILD_RPATH "@executable_path/../Frameworks")
 
-    add_executable(mini-fps-level-editor ${EDITOR_SOURCE} ${IMGUI_SOURCE})
+    add_executable(mini-fps-level-editor MACOSX_BUNDLE ${EDITOR_SOURCE} ${IMGUI_SOURCE} ${TINYFD_SOURCE})
+    set_target_properties(mini-fps-level-editor PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist
+            )
 
     target_include_directories(mini-fps-level-editor
             PRIVATE
             imgui/
+            pfd/
             ${SDL2_HEADERS}
-            stb/)
+            stb/
+            )
 
     target_link_libraries(mini-fps-level-editor PRIVATE
-            ${SDL2_FRAMEWORK})
+            ${SDL2_FRAMEWORK}
+            )
+
+    add_custom_command(TARGET mini-fps-level-editor POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/Frameworks
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/sdl/SDL2.framework ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/Frameworks/SDL2.framework
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/Resources
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/assets/mini-fps-level-editor.sh ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/MacOS
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/assets/testIcon.icns ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/Resources
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/assets/sprites ${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/Resources/sprites
+            COMMAND install_name_tool -change ${CMAKE_CURRENT_SOURCE_DIR}/lib/SDL2.framework/Versions/A/SDL2 @executable_path/../Frameworks/SDL2.framework/Versions/A/SDL2 "${CMAKE_CURRENT_BINARY_DIR}/mini-fps-level-editor.app/Contents/MacOS/mini-fps-level-editor"
+            )
 
 endif()

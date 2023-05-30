@@ -12,8 +12,12 @@ MIT license
 ### Dear ImGui
 MIT license
 
+### portable-file-dialogs
+WTFPL license
+
 ### SDL
 zlib license
 
 ### stb_image
 MIT license
+

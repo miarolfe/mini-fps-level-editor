@@ -3,14 +3,17 @@
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_sdlrenderer.h"
+#include "portable-file-dialogs.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <cstdio>
+#include <fstream>
 #include <SDL.h>
-
 
 // Dear ImGui uses SDL_Texture* as ImTextureID
 bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
+    texture->id = -1;
+
     unsigned char* data = stbi_load(fileName, &texture->width, &texture->height, &texture->channels, 0);
 
     if (data == nullptr) {
@@ -35,33 +38,109 @@ bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
     SDL_FreeSurface(surface);
     stbi_image_free(data);
 
+    std::string textureName(fileName);
+
+    size_t periodPos = textureName.find('.');
+    textureName.erase(periodPos);// Remove characters after the period
+
+    size_t lastSlashPos = textureName.find_last_of('/');
+    textureName.erase(0, lastSlashPos + 1);// Remove everything before the last slash
+
+    fprintf(stdout, "Texture name: %s\n", textureName.c_str());
+
+    if (textureNameToTextureIdMap.count(textureName) == 1) {
+        texture->id = textureNameToTextureIdMap[textureName];
+        texture->name = textureName;
+    }
+
+    return true;
+}
+
+bool Application::SaveLevel(const char* filePath) {
+    assert(mapWidth >= 3);
+    assert(mapHeight >= 3);
+
+    std::ofstream outfile(filePath);
+    if (!outfile) {
+        fprintf(stderr, "Error saving level: %s\n", filePath);
+        return false;
+    }
+
+    outfile << mapWidth << " " << mapHeight << std::endl;
+    for (size_t y = 0; y < mapHeight; y++) {
+        for (size_t x = 0; x < mapWidth; x++) {
+            outfile << levelMatrix[y][x] << (x < mapHeight - 1 ? " " : "");
+        }
+        outfile << std::endl;
+    }
+
+    std::map<short, std::string> reversedMap;
+
+    for (auto entry : textureNameToTextureIdMap) {
+        reversedMap[entry.second] = entry.first;
+    }
+
+    for (auto entry: reversedMap) {
+        outfile << entry.first << " " << entry.second << std::endl;
+    }
+
+    return true;
+}
+
+bool Application::LoadLevel(const char* filePath) {
+    std::ifstream infile(filePath);
+    if (!infile) {
+        fprintf(stderr, "Error loading level: %s\n", filePath);
+        return false;
+    }
+
+    infile >> mapWidth;
+    infile >> mapHeight;
+
+    levelMatrix = new short*[mapHeight];
+
+    for (int i = 0; i < mapHeight; i++) {
+        levelMatrix[i] = new short[mapWidth];
+    }
+
+    for (int i = 0; i < mapHeight; i++) {
+        for (int j = 0; j < mapWidth; j++) {
+            infile >> levelMatrix[i][j];
+        }
+    }
+
+    while (infile.peek() != EOF) {
+        short id;
+        infile >> id;
+        std::string textureName;
+        infile >> textureName;
+        textureNameToTextureIdMap[textureName] = id;
+    }
+
+    infile.close();
+
     return true;
 }
 
 Application::Application(int width, int height) {
+    // pfd::open_file levelFileDialog = pfd::open_file("Select level");
+    // LoadLevel(levelFileDialog.result()[0].c_str());
+
+    LoadLevel("../../../test.lvl");
+
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
     {
         printf("Error: %s\n", SDL_GetError());
     }
 
-    // From 2.0.18: Enable native IME.
-#ifdef SDL_HINT_IME_SHOW_UI
-    SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");
-#endif
-
-    // Create window with SDL_Renderer graphics context
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_MAXIMIZED);
-    SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL2+SDL_Renderer example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, window_flags);
+    SDL_WindowFlags windowFlags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Window* window = SDL_CreateWindow("mini-fps-level-editor", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, windowFlags);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
     if (renderer == nullptr)
     {
         SDL_Log("Error creating SDL_Renderer!");
     }
-
-    SDL_RendererInfo info;
-    SDL_GetRendererInfo(renderer, &info);
-    SDL_Log("Current SDL_Renderer: %s", info.name);
 
     // Setup Dear ImGui context
     ImGui::CreateContext();
@@ -71,36 +150,68 @@ Application::Application(int width, int height) {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // Setup Dear ImGui style
-    //ImGui::StyleColorsDark();
-    ImGui::StyleColorsLight();
+    ImGui::StyleColorsDark();
+    // ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer_Init(renderer);
 
-    // Our state
-    int tileSize = 16;
-    int mapWidth = 32;
-    int mapHeight = 32;
-    ImVec4 clear_color = ImVec4(0, 0, 0, 1.00f);
+    int editorTileSize = 16;
+    int paletteTileSize = 64;
+    int currentTile = 0;
+    ImVec4 backgroundColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
+
+    pfd::open_file textureFileDialog = pfd::open_file("Select textures", "", {}, pfd::opt::multiselect);
+
+    Texture fallbackTexture;
+    fallbackTexture.sdlRenderer = renderer;
+    Application::LoadTextureFromFile(&fallbackTexture, "../Resources/sprites/fallback.png");
+
+    Texture textures[textureFileDialog.result().size()];
+    for (int i = 0; i < textureFileDialog.result().size(); i++) {
+        textures[i].sdlRenderer = renderer;
+        Application::LoadTextureFromFile(&textures[i], textureFileDialog.result()[i].c_str());
+    }
+
+    std::map<short, Texture> textureIdToTextureMap;
+    std::vector<Texture> unassignedTextures;
+
+    for (auto texture : textures) {
+        if (texture.id != -1) {
+            textureIdToTextureMap[texture.id] = texture;
+        } else {
+            unassignedTextures.push_back(texture);
+        }
+    }
 
     Texture testTexture{};
     testTexture.sdlRenderer = renderer;
-    Application::LoadTextureFromFile(&testTexture, "test.png");
+    Application::LoadTextureFromFile(&testTexture, "../../../test.png");
 
-    // Main loop
+    ImGuiWindowFlags_ defaultFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                                                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
+                                                                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGuiWindowFlags_ mapEditorFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                                                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
+                                                                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize |
+                                                                      ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
     bool done = false;
     while (!done)
     {
-        // Poll and handle events (inputs, window resize, etc.)
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
             ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
+            if (event.type == SDL_QUIT) {
                 done = true;
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+            }
+
+            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window)) {
                 done = true;
+            }
         }
 
         // Start the Dear ImGui frame
@@ -108,9 +219,11 @@ Application::Application(int width, int height) {
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        // Create a main window for the tile map
-        ImGui::Begin("Map editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+
+        ImGui::Begin("Map editor", nullptr, mapEditorFlags);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 1));
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
 
@@ -119,13 +232,22 @@ Application::Application(int width, int height) {
         {
             for (int x = 0; x < mapWidth; ++x)
             {
-                // Draw the tile at (x, y)
-                ImGui::Image(testTexture.sdlTexture, ImVec2(tileSize, tileSize));
+                short cellId = levelMatrix[y][x];
+
+                // TODO: Fallback texture
+                if (cellId != 0 && textureIdToTextureMap.count(cellId) == 1) {
+                    ImGui::Image(textureIdToTextureMap[cellId].sdlTexture, ImVec2(editorTileSize, editorTileSize));
+                } else if (cellId != 0) {
+                    ImGui::Image(fallbackTexture.sdlTexture, ImVec2(editorTileSize, editorTileSize));
+                } else {
+                    ImGui::Image(nullptr, ImVec2(editorTileSize, editorTileSize));
+                }
 
                 // If the tile was clicked
                 if (ImGui::IsItemClicked())
                 {
                     fprintf(stderr, "(%d, %d) clicked\n", x, y);
+                    levelMatrix[y][x] = currentTile;
                 }
 
                 ImGui::SameLine();
@@ -138,19 +260,64 @@ Application::Application(int width, int height) {
 
         ImGui::End();
 
-        // Create a sidebar for tile and tool selection
-        ImGui::Begin("Tools");
+        ImGui::Begin("Settings", nullptr, defaultFlags);
 
-        ImGui::SliderInt("Tile size", &tileSize, 1, 32);
-        ImGui::SliderInt("Map width", &mapWidth, 3, 128);
-        ImGui::SliderInt("Map height", &mapHeight, 3, 128);
+        ImGui::SliderInt("Current tile", &currentTile, 0, 16);
+        ImGui::SliderInt("Editor tile size", &editorTileSize, 8, 64);
+        ImGui::SliderInt("Palette tile size", &paletteTileSize, 32, 128);
+        // ImGui::SliderInt("Map width", &mapWidth, 3, 128);
+        // ImGui::SliderInt("Map height", &mapHeight, 3, 128);
 
         ImGui::End();
 
-        // Rendering
+        ImGui::Begin("Palette", nullptr, defaultFlags);
+        ImGui::Text("Assigned textures");
+
+        for (auto entry : textureIdToTextureMap) {
+            ImGui::Text("id: %d", entry.first);
+            ImGui::SameLine();
+            ImGui::Text("name: %s", entry.second.name.c_str());
+
+            ImGui::Image(entry.second.sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
+            if (ImGui::IsItemClicked()) {
+                fprintf(stdout, "Image %d clicked\n", entry.first);
+                currentTile = entry.first;
+            }
+        }
+
+        ImGui::NewLine();
+
+        ImGui::Text("Unassigned textures");
+        for (auto entry : unassignedTextures) {
+            ImGui::Image(entry.sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
+            if (ImGui::IsItemClicked()) {
+                fprintf(stdout, "Unassigned texture clicked\n");
+            }
+        }
+
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("Save", "", nullptr)) {
+                    pfd::save_file newLevelFileDialog = pfd::save_file("TODO");
+                    SaveLevel(newLevelFileDialog.result().c_str());
+                }
+
+                if (ImGui::MenuItem("Load", "", nullptr)) {
+                    pfd::open_file newLevelFileDialog = pfd::open_file("Select level");
+                    LoadLevel(newLevelFileDialog.result()[0].c_str());
+                }
+
+                ImGui::EndMenu();
+            }
+
+            ImGui::EndMainMenuBar();
+        }
+
+        ImGui::End();
+
         ImGui::Render();
         SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-        SDL_SetRenderDrawColor(renderer, (Uint8)(clear_color.x * 255), (Uint8)(clear_color.y * 255), (Uint8)(clear_color.z * 255), (Uint8)(clear_color.w * 255));
+        SDL_SetRenderDrawColor(renderer, (Uint8)(backgroundColor.x * 255), (Uint8)(backgroundColor.y * 255), (Uint8)(backgroundColor.z * 255), (Uint8)(backgroundColor.w * 255));
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
         SDL_RenderPresent(renderer);
