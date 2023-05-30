@@ -310,6 +310,7 @@ Application::Application(int width, int height) {
                     if (textureIdToTextureMap.count(potentialId) == 0) {
                         id = potentialId;
                         textureIdToTextureMap[id] = unassignedTextures[i];
+                        textureNameToTextureIdMap[unassignedTextures[i].name] = id;
                         newlyAssignedTextureIds.push_back(unassignedTextures[i].id);
                     } else {
                         potentialId++;
