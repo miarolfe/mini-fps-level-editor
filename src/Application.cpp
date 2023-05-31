@@ -11,17 +11,17 @@
 #include <SDL.h>
 
 // Dear ImGui uses SDL_Texture* as ImTextureID
-bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
-    texture->id = -1;
+bool Application::LoadTextureFromFile(Texture& texture, const char* fileName) {
+    texture.id = -1;
 
-    unsigned char* data = stbi_load(fileName, &texture->width, &texture->height, &texture->channels, 0);
+    unsigned char* data = stbi_load(fileName, &texture.width, &texture.height, &texture.channels, 0);
 
     if (data == nullptr) {
         fprintf(stderr, "Failed to load image: %s\n", stbi_failure_reason());
         return false;
     }
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom((void*)data, texture->width, texture->height, texture->channels * 8, texture->channels * texture->width,
+    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom((void*)data, texture.width, texture.height, texture.channels * 8, texture.channels * texture.width,
                                                     0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
 
     if (surface == nullptr) {
@@ -29,9 +29,9 @@ bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
         return false;
     }
 
-    texture->sdlTexture = SDL_CreateTextureFromSurface(texture->sdlRenderer, surface);
+    texture.sdlTexture = SDL_CreateTextureFromSurface(texture.sdlRenderer, surface);
 
-    if (texture->sdlTexture == nullptr) {
+    if (texture.sdlTexture == nullptr) {
         fprintf(stderr, "Failed to create SDL texture: %s\n", SDL_GetError());
     }
 
@@ -48,13 +48,33 @@ bool Application::LoadTextureFromFile(Texture* texture, const char* fileName) {
 
     fprintf(stdout, "Texture name: %s\n", textureName.c_str());
 
-    texture->name = textureName;
+    texture.name = textureName;
 
     if (textureNameToTextureIdMap.count(textureName) == 1) {
-        texture->id = textureNameToTextureIdMap[textureName];
+        texture.id = textureNameToTextureIdMap[textureName];
     }
 
     return true;
+}
+
+void Application::ReassignTextures() {
+    for (const auto& texture : textures) {
+        if (textureNameToTextureIdMap.count(texture.name) == 1) {
+            textureIdToTextureMap[textureNameToTextureIdMap[texture.name]] = texture;
+        } else {
+            unassignedTextures.push_back(texture);
+        }
+    }
+}
+
+void Application::AssignNewTextures() {
+    for (const auto& texture : textures) {
+        if (texture.id != -1) {
+            textureIdToTextureMap[texture.id] = texture;
+        } else {
+            unassignedTextures.push_back(texture);
+        }
+    }
 }
 
 void Application::ResetLevelMatrix() {
@@ -111,6 +131,9 @@ bool Application::LoadLevel(const char* filePath) {
     infile >> mapHeight;
 
     ResetLevelMatrix();
+    textureNameToTextureIdMap.clear();
+    textureIdToTextureMap.clear();
+    unassignedTextures.clear();
 
     for (int i = 0; i < mapHeight; i++) {
         for (int j = 0; j < mapWidth; j++) {
@@ -125,6 +148,8 @@ bool Application::LoadLevel(const char* filePath) {
         infile >> textureName;
         textureNameToTextureIdMap[textureName] = id;
     }
+
+    ReassignTextures();
 
     infile.close();
 
@@ -172,33 +197,18 @@ Application::Application(int width, int height) {
 
     Texture fallbackTexture;
     fallbackTexture.sdlRenderer = renderer;
-    Application::LoadTextureFromFile(&fallbackTexture, "../Resources/sprites/fallback.png");
+    Application::LoadTextureFromFile(fallbackTexture, "../Resources/sprites/fallback.png");
 
-    Texture textures[textureFileDialog.result().size()];
+    textures.clear();
+    textures.reserve(textureFileDialog.result().size());
+
     for (int i = 0; i < textureFileDialog.result().size(); i++) {
-        textures[i].sdlRenderer = renderer;
-        Application::LoadTextureFromFile(&textures[i], textureFileDialog.result()[i].c_str());
+        Texture newTexture;
+        newTexture.sdlRenderer = renderer;
+        Application::LoadTextureFromFile(newTexture, textureFileDialog.result()[i].c_str());
+        textures.push_back(newTexture);
+        unassignedTextures.push_back(newTexture);
     }
-
-    std::map<short, Texture> textureIdToTextureMap;
-    std::vector<Texture> unassignedTextures;
-
-    for (const auto& texture : textures) {
-        if (texture.id != -1) {
-            textureIdToTextureMap[texture.id] = texture;
-        } else {
-            unassignedTextures.push_back(texture);
-        }
-    }
-
-    auto defaultFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                                                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
-                                                                    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize);
-
-    auto mapEditorFlags = static_cast<ImGuiWindowFlags_>(ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                                                      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove |
-                                                                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize |
-                                                                      ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
     bool done = false;
     while (!done)
@@ -223,7 +233,7 @@ Application::Application(int width, int height) {
 
         ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-        ImGui::Begin("Map editor", nullptr, mapEditorFlags);
+        ImGui::Begin("Map editor", nullptr);
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 1));
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
@@ -236,7 +246,6 @@ Application::Application(int width, int height) {
             {
                 short cellId = levelMatrix[y][x];
 
-                // TODO: Fallback texture
                 if (cellId != 0 && textureIdToTextureMap.count(cellId) == 1) {
                     ImGui::Image(textureIdToTextureMap[cellId].sdlTexture, ImVec2(editorTileSize, editorTileSize));
                 } else if (cellId != 0) {
@@ -262,7 +271,7 @@ Application::Application(int width, int height) {
 
         ImGui::End();
 
-        ImGui::Begin("Settings", nullptr, defaultFlags);
+        ImGui::Begin("Settings", nullptr);
 
         ImGui::SliderInt("Current tile", &currentTile, 0, 16);
         ImGui::SliderInt("Editor tile size", &editorTileSize, 8, 64);
@@ -272,7 +281,7 @@ Application::Application(int width, int height) {
 
         ImGui::End();
 
-        ImGui::Begin("Palette", nullptr, defaultFlags);
+        ImGui::Begin("Palette", nullptr);
         ImGui::Text("Assigned textures");
 
         for (const auto& entry : textureIdToTextureMap) {
@@ -340,6 +349,8 @@ Application::Application(int width, int height) {
             if (!unassignedTextures.empty()) {
                 unassignedTextures.pop_back();
             }
+
+            AssignNewTextures();
         }
 
         if (ImGui::BeginMainMenuBar()) {
