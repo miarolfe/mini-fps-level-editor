@@ -350,6 +350,8 @@ Application::Application(int width, int height) {
                 unassignedTextures.pop_back();
             }
 
+            currentTile = newlyAssignedTextureId;
+
             AssignNewTextures();
         }
 
