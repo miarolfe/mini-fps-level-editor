@@ -289,7 +289,7 @@ Application::Application(int width, int height) {
         }
         ImGui::NewLine();
 
-        std::vector<short> newlyAssignedTextureIds;
+        short newlyAssignedTextureId = -1;
 
         if (!unassignedTextures.empty()) {
             ImGui::Text("Unassigned textures");
@@ -299,10 +299,6 @@ Application::Application(int width, int height) {
             ImGui::Text("name: %s", unassignedTextures[i].name.c_str());
             ImGui::Image(unassignedTextures[i].sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
             if (ImGui::IsItemClicked()) {
-                fprintf(stdout, "Unassigned texture clicked\n");
-            }
-
-            if (ImGui::Button(("Assign an id##" + std::to_string(i)).c_str())) {
                 short id = -1;
                 short potentialId = 1;
 
@@ -311,33 +307,37 @@ Application::Application(int width, int height) {
                         id = potentialId;
                         textureIdToTextureMap[id] = unassignedTextures[i];
                         textureNameToTextureIdMap[unassignedTextures[i].name] = id;
-                        newlyAssignedTextureIds.push_back(unassignedTextures[i].id);
+                        unassignedTextures[i].id = id;
+                        newlyAssignedTextureId = id;
                     } else {
                         potentialId++;
                     }
                 }
-
-                fprintf(stdout, "%d\n", id);
             }
 
             ImGui::NewLine();
         }
 
-        for (int i = 0; i < newlyAssignedTextureIds.size(); i++) {
-            int index;
+        if (newlyAssignedTextureId != -1) {
+            int index = -1;
 
+            // Find index in unassigned texture pool
             for (int j = 0; j < unassignedTextures.size(); j++) {
-                if (newlyAssignedTextureIds[i] == unassignedTextures[j].id) {
+                if (newlyAssignedTextureId == unassignedTextures[j].id) {
                     index = j;
+                    fprintf(stdout, "Index is %d\n", index);
                     break;
                 }
             }
 
-            for (int h = index; h < unassignedTextures.size(); h++) {
-                unassignedTextures[h] = unassignedTextures[h+1];
+            // If the index exists, remove the item at index
+            if (index != -1) {
+                for (int h = index; h < unassignedTextures.size(); h++) {
+                    unassignedTextures[h] = unassignedTextures[h+1];
+                }
             }
 
-            if (!newlyAssignedTextureIds.empty()) {
+            if (!unassignedTextures.empty()) {
                 unassignedTextures.pop_back();
             }
         }
