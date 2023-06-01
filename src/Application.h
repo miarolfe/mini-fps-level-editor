@@ -16,8 +16,8 @@ public:
     bool SaveLevel(const char* filePath);
     bool LoadLevel(const char* filePath);
 private:
-    int mapWidth = 32;
-    int mapHeight = 32;
+    int mapWidth = 16;
+    int mapHeight = 16;
     short** levelMatrix;
     std::vector<Texture> textures;
     std::map<std::string, short> textureNameToTextureIdMap;

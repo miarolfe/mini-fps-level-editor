@@ -71,8 +71,6 @@ void Application::AssignNewTextures() {
     for (const auto& texture : textures) {
         if (texture.id != -1) {
             textureIdToTextureMap[texture.id] = texture;
-        } else {
-            unassignedTextures.push_back(texture);
         }
     }
 }
@@ -160,16 +158,15 @@ Application::Application(int width, int height) {
     NewLevel();
 
     // Setup SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
-    {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0) {
         printf("Error: %s\n", SDL_GetError());
     }
 
-    auto windowFlags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_WindowFlags windowFlags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     SDL_Window* window = SDL_CreateWindow("mini-fps-level-editor", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, windowFlags);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
-    if (renderer == nullptr)
-    {
+
+    if (renderer == nullptr) {
         SDL_Log("Error creating SDL_Renderer!");
     }
 
@@ -193,7 +190,7 @@ Application::Application(int width, int height) {
     int currentTile = 0;
     ImVec4 backgroundColor = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
 
-    pfd::open_file textureFileDialog = pfd::open_file("Select textures", "", {}, pfd::opt::multiselect);
+    pfd::open_file textureFileDialog = pfd::open_file("Select textures", "", {"Image Files", "*.png"}, pfd::opt::multiselect);
 
     Texture fallbackTexture;
     fallbackTexture.sdlRenderer = renderer;
@@ -211,11 +208,9 @@ Application::Application(int width, int height) {
     }
 
     bool done = false;
-    while (!done)
-    {
+    while (!done) {
         SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
+        while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL2_ProcessEvent(&event);
             if (event.type == SDL_QUIT) {
                 done = true;
@@ -233,6 +228,10 @@ Application::Application(int width, int height) {
 
         ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
+        short currentTileShort = static_cast<short>(currentTile);
+        float editorTileSizeFloat = static_cast<float>(editorTileSize);
+        float paletteTileSizeFloat = static_cast<float>(paletteTileSize);
+
         ImGui::Begin("Map editor", nullptr);
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1, 1));
@@ -240,25 +239,22 @@ Application::Application(int width, int height) {
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1);
 
         // Display the tile map
-        for (int y = 0; y < mapHeight; ++y)
-        {
-            for (int x = 0; x < mapWidth; ++x)
-            {
+        for (int y = 0; y < mapHeight; ++y) {
+            for (int x = 0; x < mapWidth; ++x) {
                 short cellId = levelMatrix[y][x];
 
                 if (cellId != 0 && textureIdToTextureMap.count(cellId) == 1) {
-                    ImGui::Image(textureIdToTextureMap[cellId].sdlTexture, ImVec2(editorTileSize, editorTileSize));
+                    ImGui::Image(textureIdToTextureMap[cellId].sdlTexture, ImVec2(editorTileSizeFloat, editorTileSizeFloat));
                 } else if (cellId != 0) {
-                    ImGui::Image(fallbackTexture.sdlTexture, ImVec2(editorTileSize, editorTileSize));
+                    ImGui::Image(fallbackTexture.sdlTexture, ImVec2(editorTileSizeFloat, editorTileSizeFloat));
                 } else {
-                    ImGui::Image(nullptr, ImVec2(editorTileSize, editorTileSize));
+                    ImGui::Image(nullptr, ImVec2(editorTileSizeFloat, editorTileSizeFloat));
                 }
 
                 // If the tile was clicked
-                if (ImGui::IsItemClicked())
-                {
+                if (ImGui::IsItemClicked()) {
                     fprintf(stderr, "(%d, %d) clicked\n", x, y);
-                    levelMatrix[y][x] = currentTile;
+                    levelMatrix[y][x] = currentTileShort;
                 }
 
                 ImGui::SameLine();
@@ -273,11 +269,14 @@ Application::Application(int width, int height) {
 
         ImGui::Begin("Settings", nullptr);
 
+//        int newMapWidth = mapWidth;
+//        int newMapHeight = mapHeight;
+
         ImGui::SliderInt("Current tile", &currentTile, 0, 16);
         ImGui::SliderInt("Editor tile size", &editorTileSize, 8, 64);
         ImGui::SliderInt("Palette tile size", &paletteTileSize, 32, 128);
-        // ImGui::SliderInt("Map width", &mapWidth, 3, 128);
-        // ImGui::SliderInt("Map height", &mapHeight, 3, 128);
+//        ImGui::SliderInt("Map width", &newMapWidth, 3, 128);
+//        ImGui::SliderInt("Map height", &newMapHeight, 3, 128);
 
         ImGui::End();
 
@@ -289,7 +288,7 @@ Application::Application(int width, int height) {
             ImGui::SameLine();
             ImGui::Text("name: %s", entry.second.name.c_str());
 
-            ImGui::Image(entry.second.sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
+            ImGui::Image(entry.second.sdlTexture, ImVec2(paletteTileSizeFloat, paletteTileSizeFloat));
             if (ImGui::IsItemClicked()) {
                 fprintf(stdout, "Image %d clicked\n", entry.first);
                 currentTile = entry.first;
@@ -306,7 +305,7 @@ Application::Application(int width, int height) {
 
         for (int i = 0; i < unassignedTextures.size(); i++) {
             ImGui::Text("name: %s", unassignedTextures[i].name.c_str());
-            ImGui::Image(unassignedTextures[i].sdlTexture, ImVec2(paletteTileSize, paletteTileSize));
+            ImGui::Image(unassignedTextures[i].sdlTexture, ImVec2(paletteTileSizeFloat, paletteTileSizeFloat));
             if (ImGui::IsItemClicked()) {
                 short id = -1;
                 short potentialId = 1;
@@ -356,19 +355,28 @@ Application::Application(int width, int height) {
         }
 
         if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("File")) {
+            if (ImGui::BeginMenu("Level")) {
                 if (ImGui::MenuItem("New", "", nullptr)) {
                     NewLevel();
                 }
 
                 if (ImGui::MenuItem("Save", "", nullptr)) {
-                    pfd::save_file newLevelFileDialog = pfd::save_file("TODO");
+                    pfd::save_file newLevelFileDialog = pfd::save_file("Save level");
                     SaveLevel(newLevelFileDialog.result().c_str());
                 }
 
                 if (ImGui::MenuItem("Load", "", nullptr)) {
-                    pfd::open_file newLevelFileDialog = pfd::open_file("Select level");
+                    pfd::open_file newLevelFileDialog = pfd::open_file("Load level", "", {"Level Files", "*.lvl"});
                     LoadLevel(newLevelFileDialog.result()[0].c_str());
+                }
+
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Textures")) {
+                if (ImGui::MenuItem("Load texture folder", "", nullptr)) {
+                    pfd::select_folder selectTextureFolderDialog = pfd::select_folder("Load texture folder");
+                    fprintf(stderr, "Loading texture folder not yet implemented\n");
                 }
 
                 ImGui::EndMenu();
@@ -385,6 +393,12 @@ Application::Application(int width, int height) {
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
         SDL_RenderPresent(renderer);
+
+//        if (newMapWidth != mapWidth || newMapHeight != mapHeight) {
+//            mapWidth = newMapWidth;
+//            mapHeight = newMapHeight;
+//            NewLevel();
+//        }
     }
 
     // Cleanup
