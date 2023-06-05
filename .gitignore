@@ -47,3 +47,4 @@ _deps
 
 # Project-specific
 bin
+assets/.DS_Store

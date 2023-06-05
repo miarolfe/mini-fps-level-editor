@@ -203,8 +203,10 @@ Application::Application(int width, int height) {
         Texture newTexture;
         newTexture.sdlRenderer = renderer;
         Application::LoadTextureFromFile(newTexture, textureFileDialog.result()[i].c_str());
-        textures.push_back(newTexture);
-        unassignedTextures.push_back(newTexture);
+        if (newTexture.name != "fallback") {
+            textures.push_back(newTexture);
+            unassignedTextures.push_back(newTexture);
+        }
     }
 
     bool done = false;
