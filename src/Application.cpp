@@ -102,7 +102,14 @@ bool Application::SaveLevel(const char* filePath) {
         for (size_t x = 0; x < mapWidth; x++) {
             outfile << levelMatrix[y][x] << (x < mapHeight - 1 ? " " : "");
         }
+
         outfile << std::endl;
+    }
+
+    outfile <<  enemySpawnLocations.size() << std::endl;
+    for (int i = 0; i < enemySpawnLocations.size(); i++) {
+        EnemySpawnLocation& location = enemySpawnLocations[i];
+        outfile << location.textureId << " " << location.x << " " << location.y << std::endl;
     }
 
     std::map<short, std::string> reversedMap;
@@ -132,11 +139,24 @@ bool Application::LoadLevel(const char* filePath) {
     textureNameToTextureIdMap.clear();
     textureIdToTextureMap.clear();
     unassignedTextures.clear();
+    enemySpawnLocations.clear();
 
     for (int i = 0; i < mapHeight; i++) {
         for (int j = 0; j < mapWidth; j++) {
             infile >> levelMatrix[i][j];
         }
+    }
+
+    int numEnemySpawnLocations;
+    infile >> numEnemySpawnLocations;
+
+    for (int i = 0; i < numEnemySpawnLocations; i++) {
+        EnemySpawnLocation location;
+        infile >> location.textureId;
+        infile >> location.x;
+        infile >> location.y;
+
+        enemySpawnLocations.push_back(location);
     }
 
     while (infile.peek() != EOF) {
@@ -197,7 +217,7 @@ Application::Application(int width, int height) {
     Application::LoadTextureFromFile(fallbackTexture, "../Resources/sprites/fallback.png");
 
     textures.clear();
-    textures.reserve(textureFileDialog.result().size());
+    // textures.reserve(textureFileDialog.result().size());
 
     for (int i = 0; i < textureFileDialog.result().size(); i++) {
         Texture newTexture;
@@ -387,6 +407,29 @@ Application::Application(int width, int height) {
             ImGui::EndMainMenuBar();
         }
 
+        ImGui::End();
+
+        ImGui::Begin("Enemies");
+
+        int i = 1000;
+        for (EnemySpawnLocation& location : enemySpawnLocations) {
+            ImGui::PushID(i);
+            ImGui::InputInt("Texture ID", &location.textureId);
+            ImGui::InputFloat("X", &location.x);
+            ImGui::InputFloat("Y", &location.y);
+            ImGui::NewLine();
+            ImGui::PopID();
+            i++;
+        }
+
+
+        if (ImGui::Button("Add an enemy")) {
+            EnemySpawnLocation location;
+            location.textureId = -1;
+            location.x = 0.0f;
+            location.x = 0.0f;
+            enemySpawnLocations.push_back(location);
+        }
         ImGui::End();
 
         ImGui::Render();

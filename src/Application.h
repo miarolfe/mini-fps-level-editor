@@ -5,6 +5,11 @@
 #include "SDL.h"
 #include "Texture.h"
 
+struct EnemySpawnLocation {
+    int textureId; // This should be short but eh
+    float x, y;
+};
+
 class Application {
 public:
     bool LoadTextureFromFile(Texture& texture, const char* fileName);
@@ -23,4 +28,5 @@ private:
     std::map<std::string, short> textureNameToTextureIdMap;
     std::map<short, Texture> textureIdToTextureMap;
     std::vector<Texture> unassignedTextures;
+    std::vector<EnemySpawnLocation> enemySpawnLocations;
 };
